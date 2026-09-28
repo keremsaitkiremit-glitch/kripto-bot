@@ -1,0 +1,160 @@
+import ccxt
+import requests
+import pandas as pd
+import pandas_ta as ta
+import time
+import schedule
+
+# === TELEGRAM AYARLARI ===
+TELEGRAM_TOKEN = '8923553015:AAEXRVVbQm244_KO_-ElAcfmdA_28jX8FKU' # BotFather token'ın
+TELEGRAM_CHAT_ID = '@calmcapital'
+
+exchange = ccxt.binance({
+    'options': {'defaultType': 'future'},
+    'enableRateLimit': True
+})
+
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print("Telegram gönderim hatası:", e)
+
+def get_mtf_levels(symbol):
+    levels = {}
+    timeframes = {'Günlük': '1d', 'Haftalık': '1w', 'Aylık': '1M'}
+    
+    for tf_name, tf_code in timeframes.items():
+        try:
+            bars = exchange.fetch_ohlcv(symbol, timeframe=tf_code, limit=2)
+            if len(bars) >= 2:
+                prev = bars[0]
+                high, low, close = prev[2], prev[3], prev[4]
+                
+                pivot = (high + low + close) / 3
+                r1 = (2 * pivot) - low
+                r2 = pivot + (high - low)
+                s1 = (2 * pivot) - high
+                s2 = pivot - (high - low)
+                
+                levels[tf_name] = {'R2': r2, 'R1': r1, 'Pivot': pivot, 'S1': s1, 'S2': s2}
+        except Exception:
+            continue
+    return levels
+
+def analyze_symbol(symbol):
+    try:
+        bars = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
+        if len(bars) < 50:
+            return
+            
+        df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        
+        df.ta.ema(length=9, append=True)
+        df.ta.ema(length=21, append=True)
+        df['vol_sma'] = df['volume'].rolling(window=20).mean()
+        
+        son_mum = df.iloc[-1]
+        close = son_mum['close']
+        ema9 = son_mum['EMA_9']
+        ema21 = son_mum['EMA_21']
+        hacim = son_mum['volume']
+        hacim_ortalamasi = son_mum['vol_sma']
+        
+        mtf_levels = get_mtf_levels(symbol)
+        if not mtf_levels:
+            return
+            
+        hacim_onayi = hacim > (hacim_ortalamasi * 1.8)
+        if not hacim_onayi:
+            return
+
+        # --- 🔴 SHORT STRATEJİSİ ---
+        if ema9 < ema21:
+            for tf, lvl in mtf_levels.items():
+                r1 = lvl['R1']
+                r2 = lvl['R2']
+                if (close >= r1 * 0.997 and close <= r1 * 1.003) or (close >= r2 * 0.997 and close <= r2 * 1.003):
+                    giris = close
+                    stop = giris * 1.015  # %1.5 zarar kes
+                    hedef1 = giris * 0.985 # %1.5 kâr al
+                    hedef2 = giris * 0.970 # %3.0 kâr al
+                    
+                    mesaj = (
+                        f"🚨 *SHORT SİNYALİ* 🚨\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Direnci)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                    )
+                    send_telegram_message(mesaj)
+                    return
+
+        # --- 🟢 LONG STRATEJİSİ ---
+        elif ema9 > ema21:
+            for tf, lvl in mtf_levels.items():
+                s1 = lvl['S1']
+                r1 = lvl['R1']
+                
+                if close >= s1 * 0.997 and close <= s1 * 1.003:
+                    giris = close
+                    stop = giris * 0.985  # %1.5 zarar kes
+                    hedef1 = giris * 1.015 # %1.5 kâr al
+                    hedef2 = giris * 1.030 # %3.0 kâr al
+                    
+                    mesaj = (
+                        f"🚨 *LONG SİNYALİ (Destek)* 🚨\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Desteği)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                    )
+                    send_telegram_message(mesaj)
+                    return
+                    
+                elif close > r1 and close < r1 * 1.006:
+                    giris = close
+                    stop = giris * 0.985  # %1.5 zarar kes
+                    hedef1 = giris * 1.015 # %1.5 kâr al
+                    hedef2 = giris * 1.030 # %3.0 kâr al
+                    
+                    mesaj = (
+                        f"🚨 *LONG SİNYALİ (Kırılım)* 🚨\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Kırılımı)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                    )
+                    send_telegram_message(mesaj)
+                    return
+
+    except Exception as e:
+        pass
+
+def bot_run():
+    print(f"\n[{time.strftime('%H:%M:%S')}] Piyasalar taranıyor...")
+    try:
+        markets = exchange.load_markets()
+        symbols = [s for s in markets if s.endswith('/USDT') and markets[s]['active'] and not 'UP/' in s and not 'DOWN/' in s]
+        for symbol in symbols:
+            analyze_symbol(symbol)
+            time.sleep(0.3)
+    except Exception as e:
+        print("Hata:", e)
+
+schedule.every(15).minutes.do(bot_run)
+
+print("🚀 Hedefli ve Stoplu Bot Başlatıldı!")
+bot_run()
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
