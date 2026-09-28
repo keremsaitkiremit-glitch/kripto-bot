@@ -155,14 +155,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030 
                     
                     mesaj = (
-                        f"🚨 *LONG SİNYALİ (Kırılım)* 🚨\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Kırılımı)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
-                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-                    )
+    f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
+    f"🪙 *Parite:* `{sembol}` ({tf} Kırılımı)\n\n"
+    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+    f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+    f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+    f"🛑 *Zarar Durdurma:* `{durmak:.4f}`\n"
+    f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+)
                     send_telegram_message(mesaj)
                     return
 
