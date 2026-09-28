@@ -1,7 +1,6 @@
 import ccxt
 import requests
 import pandas as pd
-import pandas_ta as ta
 import time
 import schedule
 
@@ -52,8 +51,9 @@ def analyze_symbol(symbol):
             
         df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         
-        df.ta.ema(length=9, append=True)
-        df.ta.ema(length=21, append=True)
+        # Saf pandas ile EMA hesaplaması (Harici kütüphane gerektirmez)
+        df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
+        df['EMA_21'] = df['close'].ewm(span=21, adjust=False).mean()
         df['vol_sma'] = df['volume'].rolling(window=20).mean()
         
         son_mum = df.iloc[-1]
@@ -78,9 +78,9 @@ def analyze_symbol(symbol):
                 r2 = lvl['R2']
                 if (close >= r1 * 0.997 and close <= r1 * 1.003) or (close >= r2 * 0.997 and close <= r2 * 1.003):
                     giris = close
-                    stop = giris * 1.015  # %1.5 zarar kes
-                    hedef1 = giris * 0.985 # %1.5 kâr al
-                    hedef2 = giris * 0.970 # %3.0 kâr al
+                    stop = giris * 1.015  
+                    hedef1 = giris * 0.985 
+                    hedef2 = giris * 0.970 
                     
                     mesaj = (
                         f"🚨 *SHORT SİNYALİ* 🚨\n"
@@ -102,9 +102,9 @@ def analyze_symbol(symbol):
                 
                 if close >= s1 * 0.997 and close <= s1 * 1.003:
                     giris = close
-                    stop = giris * 0.985  # %1.5 zarar kes
-                    hedef1 = giris * 1.015 # %1.5 kâr al
-                    hedef2 = giris * 1.030 # %3.0 kâr al
+                    stop = giris * 0.985  
+                    hedef1 = giris * 1.015 
+                    hedef2 = giris * 1.030 
                     
                     mesaj = (
                         f"🚨 *LONG SİNYALİ (Destek)* 🚨\n"
@@ -120,9 +120,9 @@ def analyze_symbol(symbol):
                     
                 elif close > r1 and close < r1 * 1.006:
                     giris = close
-                    stop = giris * 0.985  # %1.5 zarar kes
-                    hedef1 = giris * 1.015 # %1.5 kâr al
-                    hedef2 = giris * 1.030 # %3.0 kâr al
+                    stop = giris * 0.985  
+                    hedef1 = giris * 1.015 
+                    hedef2 = giris * 1.030 
                     
                     mesaj = (
                         f"🚨 *LONG SİNYALİ (Kırılım)* 🚨\n"
