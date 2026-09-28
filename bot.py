@@ -19,25 +19,20 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # === TELEGRAM AYARLARI ===
-TELEGRAM_TOKEN = '8923553015:AAFzkhX27Jejk2oTvqMEV2kDfp38aXs2DhU' # BotFather token'ın
+TELEGRAM_TOKEN = 'BURAYA_TOKENINI_YAZ' # BotFather token'ın
 TELEGRAM_CHAT_ID = '@CalmCappital'
 
 # Telegram'a test mesajı gönder
-import requests
-
 def send_test_message():
-    token = TELEGRAM_TOKEN  # Koddaki token değişkenin adı neyse
+    token = TELEGRAM_TOKEN  
     chat_id = TELEGRAM_CHAT_ID
-    message = "CalmCapital piyasaları tarıyor! ⏳🚀"
+    message = "CalmCapital 4H ve MTF piyasaları taramaya başladı! ⏳🚀"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message}
     try:
         requests.post(url, json=payload)
     except Exception as e:
         print(f"Test mesajı hatası: {e}")
-
-# Döngü başlamadan hemen önce çağırabilirsin:
-send_test_message()
 
 exchange = ccxt.binance({
     'options': {'defaultType': 'future'},
@@ -54,7 +49,8 @@ def send_telegram_message(message):
 
 def get_mtf_levels(symbol):
     levels = {}
-    timeframes = {'Günlük': '1d', 'Haftalık': '1w', 'Aylık': '1M'}
+    # 4 Saatlik (4h) zaman dilimi buraya eklendi!
+    timeframes = {'4 Saatlik': '4h', 'Günlük': '1d', 'Haftalık': '1w', 'Aylık': '1M'}
     
     for tf_name, tf_code in timeframes.items():
         try:
@@ -113,14 +109,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 0.970 
                     
                     mesaj = (
-    f"🚨 *SHORT SİNYALİ* 🚨\n"
-    f"🪙 *Parite:* `{sembol}` ({tf} Direnci)\n\n"
-    f"📥 *Giriş Fiyatı:* `{giris}`\n"
-    f"🎯 *TP1:* `{hedef1:.4f}`\n"
-    f"🎯 *TP2:* `{hedef2:.4f}`\n"
-    f"🛑 *Stop:* `{durmak:.4f}`\n"
-    f"📊 *Kaldıraç:* Max 5x-10x"
-)
+                        f"🚨 *SHORT SİNYALİ* 🚨\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Direnci)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *TP1:* `{hedef1:.4f}`\n"
+                        f"🎯 *TP2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç:* Max 5x-10x"
+                    )
                     send_telegram_message(mesaj)
                     return
 
@@ -137,14 +133,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030 
                     
                     mesaj = (
-    f"🟢 *LONG SİNYALİ* 🟢\n"
-    f"🪙 *Parite:* `{sembol}` ({tf} Desteği)\n\n"
-    f"📥 *Giriş Fiyatı:* `{giris}`\n"
-    f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-    f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-    f"🛑 *Zarar Durdurma:* `{durmak:.4f}`\n"
-    f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-)
+                        f"🟢 *LONG SİNYALİ* 🟢\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Desteği)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                    )
                     send_telegram_message(mesaj)
                     return
                     
@@ -155,14 +151,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030 
                     
                     mesaj = (
-    f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
-    f"🪙 *Parite:* `{sembol}` ({tf} Kırılımı)\n\n"
-    f"📥 *Giriş Fiyatı:* `{giris}`\n"
-    f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-    f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-    f"🛑 *Zarar Durdurma:* `{durmak:.4f}`\n"
-    f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-)
+                        f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Kırılımı)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                    )
                     send_telegram_message(mesaj)
                     return
 
@@ -188,10 +184,8 @@ def run_scheduler():
         time.sleep(1)
 
 if __name__ == '__main__':
-    # Botu arka planda (thread olarak) başlatıyoruz
     t = threading.Thread(target=run_scheduler)
     t.daemon = True
     t.start()
     
-    # Render'ın port isteğini karşılamak için Flask'ı ön planda çalıştırıyoruz
     run_flask()
