@@ -22,6 +22,23 @@ def run_flask():
 TELEGRAM_TOKEN = '8923553015:AAEXRVVbQm244_KO_-ElAcfmdA_28jX8FKU' # BotFather token'ın
 TELEGRAM_CHAT_ID = '@CalmCappital'
 
+# Telegram'a test mesajı gönder
+import requests
+
+def send_test_message():
+    token = TELEGRAM_TOKEN  # Koddaki token değişkenin adı neyse
+    chat_id = TELEGRAM_CHAT_ID
+    message = "Bot başarıyla çalıştı ve piyasaları tarıyor! 🚀"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message}
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"Test mesajı hatası: {e}")
+
+# Döngü başlamadan hemen önce çağırabilirsin:
+send_test_message()
+
 exchange = ccxt.binance({
     'options': {'defaultType': 'future'},
     'enableRateLimit': True
