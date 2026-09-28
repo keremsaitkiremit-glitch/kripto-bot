@@ -26,7 +26,7 @@ TELEGRAM_CHAT_ID = '@CalmCappital'
 def send_test_message():
     token = TELEGRAM_TOKEN  
     chat_id = TELEGRAM_CHAT_ID
-    message = "CalmCapital 4H ve MTF piyasaları taramaya başladı! ⏳🚀"
+    message = "CalmCapital piyasayı tarıyor! ⏳🚀"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message}
     try:
