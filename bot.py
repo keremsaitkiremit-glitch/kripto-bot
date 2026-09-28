@@ -12,25 +12,23 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "CalmCapital piyasayı tarıyor! ⏳🚀"
+    return "CalmCapital piyasaları tarıyor! ⏳🚀"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
 # === TELEGRAM AYARLARI ===
-TELEGRAM_TOKEN = '8923553015:AAFzkhX27Jejk2oTvqMEV2kDfp38aXs2DhU' # BotFather token'ın
+TELEGRAM_TOKEN = '8923553015:AAFzkhX27Jejk2oTvqMEV2kDfp38aXs2DhU' # BotFather'dan aldığın gerçek token'ın burada tırnak içinde yazılı olmalı!
 TELEGRAM_CHAT_ID = '@CalmCappital'
 
-# Telegram'a test mesajı gönder
+# Telegram'a açılış test mesajı gönder
 def send_test_message():
-    token = TELEGRAM_TOKEN  
-    chat_id = TELEGRAM_CHAT_ID
-    message = "CalmCapital piyasayı tarıyor! ⏳🚀"
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message}
+    message = "CalmCapital piyasaları tarıyor! ⏳🚀"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
     try:
-        requests.post(url, json=payload)
+        requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Test mesajı hatası: {e}")
 
@@ -49,7 +47,6 @@ def send_telegram_message(message):
 
 def get_mtf_levels(symbol):
     levels = {}
-    # 4 Saatlik (4h) zaman dilimi buraya eklendi!
     timeframes = {'4 Saatlik': '4h', 'Günlük': '1d', 'Haftalık': '1w', 'Aylık': '1M'}
     
     for tf_name, tf_code in timeframes.items():
@@ -177,6 +174,9 @@ def bot_run():
         print("Hata:", e)
 
 def run_scheduler():
+    # Bot başlar başlamaz Telegram'a test mesajı atar
+    send_test_message()
+    
     schedule.every(15).minutes.do(bot_run)
     bot_run()
     while True:
