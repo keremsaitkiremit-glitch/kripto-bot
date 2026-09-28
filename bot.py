@@ -19,7 +19,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # === TELEGRAM AYARLARI ===
-TELEGRAM_TOKEN = '8923553015:AAEXRVVbQm244_KO_-ElAcfmdA_28jX8FKU' # BotFather token'ın
+TELEGRAM_TOKEN = '8923553015:AAFzkhX27Jejk2oTvqMEV2kDfp38aXs2DhU' # BotFather token'ın
 TELEGRAM_CHAT_ID = '@CalmCappital'
 
 # Telegram'a test mesajı gönder
