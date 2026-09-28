@@ -113,14 +113,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 0.970 
                     
                     mesaj = (
-                        f"🚨 *SHORT SİNYALİ* 🚨\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Direnci)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
-                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-                    )
+    f"🚨 *SHORT SİNYALİ* 🚨\n"
+    f"🪙 *Parite:* `{sembol}` ({tf} Direnci)\n\n"
+    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+    f"🎯 *TP1:* `{hedef1:.4f}`\n"
+    f"🎯 *TP2:* `{hedef2:.4f}`\n"
+    f"🛑 *Stop:* `{durmak:.4f}`\n"
+    f"📊 *Kaldıraç:* Max 5x-10x"
+)
                     send_telegram_message(mesaj)
                     return
 
@@ -137,14 +137,14 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030 
                     
                     mesaj = (
-                        f"🚨 *LONG SİNYALİ (Destek)* 🚨\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Desteği)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Stop-Loss:* `{stop:.4f}`\n\n"
-                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-                    )
+    f"🟢 *LONG SİNYALİ* 🟢\n"
+    f"🪙 *Parite:* `{sembol}` ({tf} Desteği)\n\n"
+    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+    f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+    f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+    f"🛑 *Zarar Durdurma:* `{durmak:.4f}`\n"
+    f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+)
                     send_telegram_message(mesaj)
                     return
                     
