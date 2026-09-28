@@ -3,6 +3,20 @@ import requests
 import pandas as pd
 import time
 import schedule
+import threading
+import os
+from flask import Flask
+
+# === WEB SUNUCUSU (Render'ın kapanmaması için) ===
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Kripto Sinyal Botu Aktif ve Çalışıyor! 🚀"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 # === TELEGRAM AYARLARI ===
 TELEGRAM_TOKEN = '8923553015:AAEXRVVbQm244_KO_-ElAcfmdA_28jX8FKU' # BotFather token'ın
@@ -51,7 +65,6 @@ def analyze_symbol(symbol):
             
         df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         
-        # Saf pandas ile EMA hesaplaması (Harici kütüphane gerektirmez)
         df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
         df['EMA_21'] = df['close'].ewm(span=21, adjust=False).mean()
         df['vol_sma'] = df['volume'].rolling(window=20).mean()
@@ -150,11 +163,18 @@ def bot_run():
     except Exception as e:
         print("Hata:", e)
 
-schedule.every(15).minutes.do(bot_run)
+def run_scheduler():
+    schedule.every(15).minutes.do(bot_run)
+    bot_run()
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
-print("🚀 Hedefli ve Stoplu Bot Başlatıldı!")
-bot_run()
-
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+if __name__ == '__main__':
+    # Botu arka planda (thread olarak) başlatıyoruz
+    t = threading.Thread(target=run_scheduler)
+    t.daemon = True
+    t.start()
+    
+    # Render'ın port isteğini karşılamak için Flask'ı ön planda çalıştırıyoruz
+    run_flask()
