@@ -28,7 +28,7 @@ import requests
 def send_test_message():
     token = TELEGRAM_TOKEN  # Koddaki token değişkenin adı neyse
     chat_id = TELEGRAM_CHAT_ID
-    message = "Bot başarıyla çalıştı ve piyasaları tarıyor! 🚀"
+    message = "CalmCapital piyasaları tarıyor! 🚀"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message}
     try:
