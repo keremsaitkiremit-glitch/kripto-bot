@@ -1,4 +1,5 @@
 ccxt
 requests
 pandas
+pandas-ta
 schedule
