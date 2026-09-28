@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Kripto Sinyal Botu Aktif ve Çalışıyor! 🚀"
+    return "CalmCapital piyasayı tarıyor! ⏳🚀"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
