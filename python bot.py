@@ -20,7 +20,7 @@ def run_flask():
 
 # === TELEGRAM AYARLARI ===
 TELEGRAM_TOKEN = '8923553015:AAEXRVVbQm244_KO_-ElAcfmdA_28jX8FKU' # BotFather token'ın
-TELEGRAM_CHAT_ID = '@calmcapital'
+TELEGRAM_CHAT_ID = '@CalmCappital'
 
 exchange = ccxt.binance({
     'options': {'defaultType': 'future'},
