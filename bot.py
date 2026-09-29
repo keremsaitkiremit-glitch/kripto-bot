@@ -1,4 +1,4 @@
-import requests
+import ccxt
 import pandas as pd
 import time
 import schedule
@@ -8,7 +8,6 @@ from flask import Flask
 
 app = Flask(__name__)
 
-# Web sunucusu ana sayfası
 @app.route("/")
 def home():
     return "CalmCapital piyasaları tarıyor! ⏳🚀"
@@ -24,6 +23,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "@CalmCappital")
 def send_telegram_message(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return False
+    import requests
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         response = requests.post(
@@ -36,92 +36,49 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀")
+    send_telegram_message(
+        "🚀 *CalmCapital Başlatıldı!*\n\n"
+        "Bot başarıyla çalışıyor.\n"
+        "📊 Binance Futures piyasaları taranıyor..."
+    )
 
-# === BYBIT BAĞLANTISI (CloudFront 403 Bypass - Alternatif Domain) ===
-BYBIT_BASE_URL = "https://api.bytick.com"
-session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json"
+# === BORSAYA BAĞLANTI (Binance Futures - Engelsiz) ===
+exchange = ccxt.binance({
+    'options': {'defaultType': 'future'},
+    'enableRateLimit': True
 })
 
-def bybit_get(endpoint, params=None):
-    url = f"{BYBIT_BASE_URL}{endpoint}"
-    response = session.get(url, params=params, timeout=15)
-    response.raise_for_status()
-    data = response.json()
-    if data.get("retCode") != 0:
-        raise Exception(f"Bybit API hatası: {data.get('retCode')} - {data.get('retMsg')}")
-    return data
-
 def get_symbols():
-    print("Bybit USDT Futures pariteleri yükleniyor...", flush=True)
-    symbols = []
+    print("Binance USDT Futures pariteleri yükleniyor...", flush=True)
     try:
-        params = {"category": "linear", "limit": 500}
-        data = bybit_get("/v5/market/instruments-info", params)
-        instruments = data.get("result", {}).get("list", [])
-        
-        for item in instruments:
-            symbol = item.get("symbol")
-            status = item.get("status")
-            settle_coin = item.get("settleCoin")
-            
-            if (
-                symbol
-                and symbol.endswith("USDT")
-                and status == "Trading"
-                and settle_coin == "USDT"
-                and "UP" not in symbol
-                and "DOWN" not in symbol
-            ):
-                symbols.append(symbol)
-                
-        symbols = sorted(list(set(symbols)))
-        print(f"{len(symbols)} Bybit USDT paritesi bulundu.", flush=True)
+        markets = exchange.load_markets()
+        symbols = [
+            s for s in markets 
+            if s.endswith('/USDT') 
+            and markets[s]['active'] 
+            and not 'UP/' in s 
+            and not 'DOWN/' in s
+        ]
+        print(f"{len(symbols)} USDT paritesi bulundu.", flush=True)
         return symbols
     except Exception as e:
-        print(f"Bybit pariteleri alınamadı: {repr(e)}", flush=True)
+        print(f"Pariteler alınamadı: {repr(e)}", flush=True)
         return []
 
-def fetch_ohlcv(symbol, interval, limit=100):
+def fetch_ohlcv(symbol, timeframe, limit=100):
     try:
-        params = {
-            "category": "linear",
-            "symbol": symbol,
-            "interval": interval,
-            "limit": limit
-        }
-        data = bybit_get("/v5/market/kline", params)
-        rows = data.get("result", {}).get("list", [])
-        if not rows:
-            return []
-        
-        rows = list(reversed(rows))
-        result = []
-        for row in rows:
-            if len(row) < 6:
-                continue
-            result.append([
-                int(row[0]),
-                float(row[1]),
-                float(row[2]),
-                float(row[3]),
-                float(row[4]),
-                float(row[5])
-            ])
-        return result
+        bars = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        return bars
     except Exception:
         return []
 
 def get_mtf_levels(symbol):
     levels = {}
     timeframes = {
-        "4 Saatlik": "240",
-        "Günlük": "D",
-        "Haftalık": "W",
-        "Aylık": "M"
+        "4 Saatlik": "4h",
+        "Günlük": "1d",
+        "Haftalık": "1w",
+        "Aylık": "1M"
     }
     
     for tf_name, tf_code in timeframes.items():
@@ -148,7 +105,7 @@ def get_mtf_levels(symbol):
 
 def analyze_symbol(symbol):
     try:
-        bars = fetch_ohlcv(symbol, "15", limit=100)
+        bars = fetch_ohlcv(symbol, '15m', limit=100)
         if len(bars) < 50:
             return
             
@@ -171,6 +128,9 @@ def analyze_symbol(symbol):
         if not mtf_levels:
             return
             
+        # Binance'de aratması kolay olsun diye "BTC/USDT" yerine "BTCUSDT" yazdırıyoruz
+        clean_symbol = symbol.replace("/", "")
+            
         if ema9 < ema21:
             for tf, lvl in mtf_levels.items():
                 r1, r2 = lvl["R1"], lvl["R2"]
@@ -182,7 +142,7 @@ def analyze_symbol(symbol):
                     
                     mesaj = (
                         f"🚨 *SHORT SİNYALİ* 🚨\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Direnci)\n\n"
+                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Direnci)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
                         f"🎯 *TP1:* `{hedef1:.4f}`\n"
                         f"🎯 *TP2:* `{hedef2:.4f}`\n"
@@ -204,7 +164,7 @@ def analyze_symbol(symbol):
                     
                     mesaj = (
                         f"🟢 *LONG SİNYALİ* 🟢\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Desteği)\n\n"
+                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Desteği)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
                         f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
                         f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
@@ -222,7 +182,7 @@ def analyze_symbol(symbol):
                     
                     mesaj = (
                         f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
-                        f"🪙 *Parite:* `{symbol}` ({tf} Kırılımı)\n\n"
+                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Kırılımı)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
                         f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
                         f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
@@ -235,12 +195,12 @@ def analyze_symbol(symbol):
         pass
 
 def bot_run():
-    print(f"\n[{time.strftime('%H:%M:%S')}] Bybit piyasaları taranıyor...", flush=True)
+    print(f"\n[{time.strftime('%H:%M:%S')}] Piyasalar taranıyor...", flush=True)
     symbols = get_symbols()
     if symbols:
         for symbol in symbols:
             analyze_symbol(symbol)
-            time.sleep(0.25)
+            time.sleep(0.2)
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
