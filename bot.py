@@ -40,11 +40,11 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 def send_telegram_message(message):
 
     if not TELEGRAM_TOKEN:
-        print("❌ TELEGRAM_TOKEN bulunamadı!")
+        print("❌ TELEGRAM_TOKEN bulunamadı!", flush=True)
         return False
 
     if not TELEGRAM_CHAT_ID:
-        print("❌ TELEGRAM_CHAT_ID bulunamadı!")
+        print("❌ TELEGRAM_CHAT_ID bulunamadı!", flush=True)
         return False
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -55,6 +55,8 @@ def send_telegram_message(message):
         "parse_mode": "Markdown"
     }
 
+    print("🔵 Telegram'a mesaj gönderiliyor...", flush=True)
+
     try:
 
         response = requests.post(
@@ -63,21 +65,36 @@ def send_telegram_message(message):
             timeout=10
         )
 
-        print("Telegram HTTP:", response.status_code)
-        print("Telegram cevap:", response.text)
+        print(
+            f"🟢 Telegram HTTP: {response.status_code}",
+            flush=True
+        )
+
+        print(
+            f"🟢 Telegram cevap: {response.text}",
+            flush=True
+        )
 
         if response.ok:
-            print("✅ Telegram mesajı gönderildi.")
+            print(
+                "✅ Telegram mesajı gönderildi.",
+                flush=True
+            )
             return True
 
-        print("❌ Telegram mesajı gönderilemedi.")
+        print(
+            "❌ Telegram mesajı gönderilemedi.",
+            flush=True
+        )
+
         return False
 
     except Exception as e:
 
         print(
             "❌ Telegram bağlantı hatası:",
-            repr(e)
+            repr(e),
+            flush=True
         )
 
         return False
@@ -89,13 +106,23 @@ def send_telegram_message(message):
 
 def send_test_message():
 
+    print(
+        "🔵 TEST: send_test_message başladı",
+        flush=True
+    )
+
     message = (
-        "🚀 *CalmCapital başladı!*\n\n"
+        "🚀 CalmCapital başladı!\n\n"
         "Bot başarıyla çalışıyor.\n"
         "📊 Piyasalar taranıyor..."
     )
 
     send_telegram_message(message)
+
+    print(
+        "🔵 TEST: send_test_message bitti",
+        flush=True
+    )
 
 
 # =========================================================
@@ -129,6 +156,11 @@ def get_mtf_levels(symbol):
 
         try:
 
+            print(
+                f"📐 {symbol} - {tf_name} seviyesi hesaplanıyor...",
+                flush=True
+            )
+
             bars = exchange.fetch_ohlcv(
                 symbol,
                 timeframe=tf_code,
@@ -140,9 +172,9 @@ def get_mtf_levels(symbol):
                 # Son tamamlanmış mum
                 prev = bars[-2]
 
-                high = prev[2]
-                low = prev[3]
-                close = prev[4]
+                high = float(prev[2])
+                low = float(prev[3])
+                close = float(prev[4])
 
                 pivot = (high + low + close) / 3
 
@@ -163,8 +195,9 @@ def get_mtf_levels(symbol):
         except Exception as e:
 
             print(
-                f"⚠️ {symbol} - {tf_name} "
-                f"seviye hatası: {repr(e)}"
+                f"⚠️ {symbol} - {tf_name} seviye hatası: "
+                f"{repr(e)}",
+                flush=True
             )
 
     return levels
@@ -294,7 +327,8 @@ def analyze_symbol(symbol):
 
                     print(
                         f"🚨 SHORT SİNYALİ: "
-                        f"{symbol} - {tf}"
+                        f"{symbol} - {tf}",
+                        flush=True
                     )
 
                     send_telegram_message(mesaj)
@@ -342,7 +376,8 @@ def analyze_symbol(symbol):
 
                     print(
                         f"🟢 LONG SİNYALİ: "
-                        f"{symbol} - {tf}"
+                        f"{symbol} - {tf}",
+                        flush=True
                     )
 
                     send_telegram_message(mesaj)
@@ -379,7 +414,8 @@ def analyze_symbol(symbol):
 
                     print(
                         f"🟢 LONG KIRILIM: "
-                        f"{symbol} - {tf}"
+                        f"{symbol} - {tf}",
+                        flush=True
                     )
 
                     send_telegram_message(mesaj)
@@ -390,7 +426,8 @@ def analyze_symbol(symbol):
 
         print(
             f"❌ {symbol} analiz hatası: "
-            f"{repr(e)}"
+            f"{repr(e)}",
+            flush=True
         )
 
 
@@ -400,15 +437,25 @@ def analyze_symbol(symbol):
 
 def bot_run():
 
-   print(
-    f"\n[{time.strftime('%H:%M:%S')}] "
-    "📊 Piyasalar taranıyor...",
-    flush=True
-)
+    print(
+        f"\n[{time.strftime('%H:%M:%S')}] "
+        "📊 Piyasalar taranıyor...",
+        flush=True
+    )
 
     try:
 
+        print(
+            "🔄 Binance piyasaları yükleniyor...",
+            flush=True
+        )
+
         markets = exchange.load_markets()
+
+        print(
+            "✅ Binance piyasaları yüklendi.",
+            flush=True
+        )
 
         symbols = [
             s
@@ -422,23 +469,32 @@ def bot_run():
         ]
 
         print(
-    f"🔎 {len(symbols)} parite bulundu.",
-    flush=True
-)
+            f"🔎 {len(symbols)} parite bulundu.",
+            flush=True
+        )
 
-        for symbol in symbols:
+        for index, symbol in enumerate(symbols, start=1):
+
+            print(
+                f"📈 Analiz: {index}/{len(symbols)} - {symbol}",
+                flush=True
+            )
 
             analyze_symbol(symbol)
 
             time.sleep(0.3)
 
-        print("✅ Piyasa taraması tamamlandı.", flush=True)
+        print(
+            "✅ Piyasa taraması tamamlandı.",
+            flush=True
+        )
 
     except Exception as e:
 
         print(
             "❌ Piyasa tarama hatası:",
-            repr(e)
+            repr(e),
+            flush=True
         )
 
 
@@ -448,13 +504,26 @@ def bot_run():
 
 def run_scheduler():
 
-    print("🚀 CalmCapital bot başlatılıyor...")
+    print(
+        "🚀 CalmCapital bot başlatılıyor...",
+        flush=True
+    )
 
     # Telegram test mesajı
     send_test_message()
 
+    print(
+        "🟢 Telegram test aşaması tamamlandı.",
+        flush=True
+    )
+
     # Her 15 dakikada bir
     schedule.every(15).minutes.do(bot_run)
+
+    print(
+        "⏰ 15 dakikalık tarama zamanlayıcısı kuruldu.",
+        flush=True
+    )
 
     # Bot açılır açılmaz bir tarama
     bot_run()
@@ -469,7 +538,8 @@ def run_scheduler():
 
             print(
                 "❌ Scheduler hatası:",
-                repr(e)
+                repr(e),
+                flush=True
             )
 
         time.sleep(1)
@@ -481,18 +551,31 @@ def run_scheduler():
 
 if __name__ == "__main__":
 
-    print("======================================")
-    print("🚀 CALMCAPITAL BAŞLATILIYOR")
-    print("======================================")
+    print(
+        "======================================",
+        flush=True
+    )
+
+    print(
+        "🚀 CALMCAPITAL BAŞLATILIYOR",
+        flush=True
+    )
+
+    print(
+        "======================================",
+        flush=True
+    )
 
     print(
         "Telegram token durumu:",
-        "OK" if TELEGRAM_TOKEN else "YOK"
+        "OK" if TELEGRAM_TOKEN else "YOK",
+        flush=True
     )
 
     print(
         "Telegram chat ID durumu:",
-        "OK" if TELEGRAM_CHAT_ID else "YOK"
+        "OK" if TELEGRAM_CHAT_ID else "YOK",
+        flush=True
     )
 
     # Scheduler ayrı thread
@@ -502,6 +585,11 @@ if __name__ == "__main__":
     )
 
     t.start()
+
+    print(
+        "🌐 Flask sunucusu başlatılıyor...",
+        flush=True
+    )
 
     # Flask / Render
     run_flask()
