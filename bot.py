@@ -1,4 +1,4 @@
-import ccxt
+```python
 import requests
 import pandas as pd
 import time
@@ -34,28 +34,48 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 
 # =========================================================
+# BYBIT AYARLARI
+# =========================================================
+
+BYBIT_BASE_URL = "https://api.bybit.com"
+
+session = requests.Session()
+
+session.headers.update({
+    "User-Agent": "CalmCapital/1.0"
+})
+
+
+# =========================================================
 # TELEGRAM MESAJ GÖNDERME
 # =========================================================
 
 def send_telegram_message(message):
 
     if not TELEGRAM_TOKEN:
-        print("❌ TELEGRAM_TOKEN bulunamadı!", flush=True)
+        print(
+            "❌ TELEGRAM_TOKEN bulunamadı!",
+            flush=True
+        )
         return False
 
     if not TELEGRAM_CHAT_ID:
-        print("❌ TELEGRAM_CHAT_ID bulunamadı!", flush=True)
+        print(
+            "❌ TELEGRAM_CHAT_ID bulunamadı!",
+            flush=True
+        )
         return False
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_TOKEN}/sendMessage"
+    )
 
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-
-    print("🔵 Telegram'a mesaj gönderiliyor...", flush=True)
 
     try:
 
@@ -76,16 +96,13 @@ def send_telegram_message(message):
         )
 
         if response.ok:
+
             print(
                 "✅ Telegram mesajı gönderildi.",
                 flush=True
             )
-            return True
 
-        print(
-            "❌ Telegram mesajı gönderilemedi.",
-            flush=True
-        )
+            return True
 
         return False
 
@@ -107,34 +124,202 @@ def send_telegram_message(message):
 def send_test_message():
 
     print(
-        "🔵 TEST: send_test_message başladı",
+        "🔵 Telegram test mesajı gönderiliyor...",
         flush=True
     )
 
     message = (
-        "🚀 CalmCapital başladı!\n\n"
+        "🚀 *CalmCapital başladı!*\n\n"
         "Bot başarıyla çalışıyor.\n"
-        "📊 Piyasalar taranıyor..."
+        "📊 Bybit piyasaları taranıyor..."
     )
 
     send_telegram_message(message)
 
+
+# =========================================================
+# BYBIT API İSTEĞİ
+# =========================================================
+
+def bybit_get(endpoint, params=None):
+
+    url = f"{BYBIT_BASE_URL}{endpoint}"
+
+    try:
+
+        response = session.get(
+            url,
+            params=params,
+            timeout=15
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        if data.get("retCode") != 0:
+
+            raise Exception(
+                f"Bybit API hatası: "
+                f"{data.get('retCode')} - "
+                f"{data.get('retMsg')}"
+            )
+
+        return data
+
+    except Exception as e:
+
+        print(
+            "❌ Bybit API hatası:",
+            repr(e),
+            flush=True
+        )
+
+        raise
+
+
+# =========================================================
+# BYBIT USDT LINEAR PARİTELERİ
+# =========================================================
+
+def get_symbols():
+
     print(
-        "🔵 TEST: send_test_message bitti",
+        "🔄 Bybit USDT Futures piyasaları yükleniyor...",
         flush=True
     )
 
+    symbols = []
+
+    cursor = None
+
+    try:
+
+        while True:
+
+            params = {
+                "category": "linear",
+                "limit": 500
+            }
+
+            if cursor:
+                params["cursor"] = cursor
+
+            data = bybit_get(
+                "/v5/market/instruments-info",
+                params
+            )
+
+            result = data.get(
+                "result",
+                {}
+            )
+
+            instruments = result.get(
+                "list",
+                []
+            )
+
+            for item in instruments:
+
+                symbol = item.get("symbol")
+                status = item.get("status")
+                settle_coin = item.get("settleCoin")
+
+                if (
+                    symbol
+                    and symbol.endswith("USDT")
+                    and status == "Trading"
+                    and settle_coin == "USDT"
+                    and "UP" not in symbol
+                    and "DOWN" not in symbol
+                ):
+
+                    symbols.append(symbol)
+
+            cursor = result.get(
+                "nextPageCursor"
+            )
+
+            if not cursor:
+                break
+
+            time.sleep(0.2)
+
+        symbols = sorted(
+            list(set(symbols))
+        )
+
+        print(
+            f"✅ {len(symbols)} Bybit USDT paritesi bulundu.",
+            flush=True
+        )
+
+        return symbols
+
+    except Exception as e:
+
+        print(
+            "❌ Bybit pariteleri alınamadı:",
+            repr(e),
+            flush=True
+        )
+
+        return []
+
 
 # =========================================================
-# BINANCE
+# BYBIT KLINE VERİSİ
 # =========================================================
 
-exchange = ccxt.binance({
-    "options": {
-        "defaultType": "future"
-    },
-    "enableRateLimit": True
-})
+def fetch_ohlcv(
+    symbol,
+    interval,
+    limit=100
+):
+
+    params = {
+        "category": "linear",
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
+
+    data = bybit_get(
+        "/v5/market/kline",
+        params
+    )
+
+    rows = (
+        data
+        .get("result", {})
+        .get("list", [])
+    )
+
+    if not rows:
+        return []
+
+    # Bybit newest -> oldest döndürür.
+    # Analiz için oldest -> newest yapıyoruz.
+    rows = list(reversed(rows))
+
+    result = []
+
+    for row in rows:
+
+        if len(row) < 7:
+            continue
+
+        result.append([
+            int(row[0]),
+            float(row[1]),
+            float(row[2]),
+            float(row[3]),
+            float(row[4]),
+            float(row[5])
+        ])
+
+    return result
 
 
 # =========================================================
@@ -146,450 +331,11 @@ def get_mtf_levels(symbol):
     levels = {}
 
     timeframes = {
-        "4 Saatlik": "4h",
-        "Günlük": "1d",
-        "Haftalık": "1w",
-        "Aylık": "1M"
+        "4 Saatlik": "240",
+        "Günlük": "D",
+        "Haftalık": "W",
+        "Aylık": "M"
     }
 
-    for tf_name, tf_code in timeframes.items():
-
-        try:
-
-            print(
-                f"📐 {symbol} - {tf_name} seviyesi hesaplanıyor...",
-                flush=True
-            )
-
-            bars = exchange.fetch_ohlcv(
-                symbol,
-                timeframe=tf_code,
-                limit=2
-            )
-
-            if len(bars) >= 2:
-
-                # Son tamamlanmış mum
-                prev = bars[-2]
-
-                high = float(prev[2])
-                low = float(prev[3])
-                close = float(prev[4])
-
-                pivot = (high + low + close) / 3
-
-                r1 = (2 * pivot) - low
-                r2 = pivot + (high - low)
-
-                s1 = (2 * pivot) - high
-                s2 = pivot - (high - low)
-
-                levels[tf_name] = {
-                    "R2": r2,
-                    "R1": r1,
-                    "Pivot": pivot,
-                    "S1": s1,
-                    "S2": s2
-                }
-
-        except Exception as e:
-
-            print(
-                f"⚠️ {symbol} - {tf_name} seviye hatası: "
-                f"{repr(e)}",
-                flush=True
-            )
-
-    return levels
-
-
-# =========================================================
-# PARİTE ANALİZİ
-# =========================================================
-
-def analyze_symbol(symbol):
-
-    try:
-
-        bars = exchange.fetch_ohlcv(
-            symbol,
-            timeframe="15m",
-            limit=100
-        )
-
-        if len(bars) < 50:
-            return
-
-        df = pd.DataFrame(
-            bars,
-            columns=[
-                "timestamp",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume"
-            ]
-        )
-
-        # -------------------------------------------------
-        # EMA
-        # -------------------------------------------------
-
-        df["EMA_9"] = df["close"].ewm(
-            span=9,
-            adjust=False
-        ).mean()
-
-        df["EMA_21"] = df["close"].ewm(
-            span=21,
-            adjust=False
-        ).mean()
-
-        # -------------------------------------------------
-        # HACİM ORTALAMASI
-        # -------------------------------------------------
-
-        df["vol_sma"] = df["volume"].rolling(
-            window=20
-        ).mean()
-
-        son_mum = df.iloc[-1]
-
-        close = float(son_mum["close"])
-        ema9 = float(son_mum["EMA_9"])
-        ema21 = float(son_mum["EMA_21"])
-        hacim = float(son_mum["volume"])
-        hacim_ortalamasi = float(son_mum["vol_sma"])
-
-        if pd.isna(hacim_ortalamasi):
-            return
-
-        # -------------------------------------------------
-        # MTF SEVİYELER
-        # -------------------------------------------------
-
-        mtf_levels = get_mtf_levels(symbol)
-
-        if not mtf_levels:
-            return
-
-        # -------------------------------------------------
-        # HACİM ONAYI
-        # -------------------------------------------------
-
-        hacim_onayi = hacim > (
-            hacim_ortalamasi * 1.8
-        )
-
-        if not hacim_onayi:
-            return
-
-        # =================================================
-        # SHORT
-        # =================================================
-
-        if ema9 < ema21:
-
-            for tf, lvl in mtf_levels.items():
-
-                r1 = lvl["R1"]
-                r2 = lvl["R2"]
-
-                r1_yakin = (
-                    close >= r1 * 0.997
-                    and close <= r1 * 1.003
-                )
-
-                r2_yakin = (
-                    close >= r2 * 0.997
-                    and close <= r2 * 1.003
-                )
-
-                if r1_yakin or r2_yakin:
-
-                    giris = close
-
-                    stop = giris * 1.015
-                    hedef1 = giris * 0.985
-                    hedef2 = giris * 0.970
-
-                    mesaj = (
-                        "🚨 *SHORT SİNYALİ* 🚨\n\n"
-                        f"🪙 *Parite:* `{symbol}`\n"
-                        f"📍 *Seviye:* {tf} Direnci\n\n"
-                        f"📥 *Giriş:* `{giris:.6f}`\n"
-                        f"🎯 *TP1:* `{hedef1:.6f}`\n"
-                        f"🎯 *TP2:* `{hedef2:.6f}`\n"
-                        f"🛑 *Stop:* `{stop:.6f}`\n\n"
-                        "📊 *Kaldıraç:* Max 5x-10x"
-                    )
-
-                    print(
-                        f"🚨 SHORT SİNYALİ: "
-                        f"{symbol} - {tf}",
-                        flush=True
-                    )
-
-                    send_telegram_message(mesaj)
-
-                    return
-
-        # =================================================
-        # LONG
-        # =================================================
-
-        elif ema9 > ema21:
-
-            for tf, lvl in mtf_levels.items():
-
-                s1 = lvl["S1"]
-                r1 = lvl["R1"]
-
-                # -----------------------------------------
-                # DESTEK LONG
-                # -----------------------------------------
-
-                destek_yakin = (
-                    close >= s1 * 0.997
-                    and close <= s1 * 1.003
-                )
-
-                if destek_yakin:
-
-                    giris = close
-
-                    stop = giris * 0.985
-                    hedef1 = giris * 1.015
-                    hedef2 = giris * 1.030
-
-                    mesaj = (
-                        "🟢 *LONG SİNYALİ* 🟢\n\n"
-                        f"🪙 *Parite:* `{symbol}`\n"
-                        f"📍 *Seviye:* {tf} Desteği\n\n"
-                        f"📥 *Giriş:* `{giris:.6f}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.6f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.6f}`\n"
-                        f"🛑 *Stop:* `{stop:.6f}`\n\n"
-                        "📊 *Kaldıraç:* Max 5x-10x"
-                    )
-
-                    print(
-                        f"🟢 LONG SİNYALİ: "
-                        f"{symbol} - {tf}",
-                        flush=True
-                    )
-
-                    send_telegram_message(mesaj)
-
-                    return
-
-                # -----------------------------------------
-                # R1 KIRILIM LONG
-                # -----------------------------------------
-
-                kirilim = (
-                    close > r1
-                    and close < r1 * 1.006
-                )
-
-                if kirilim:
-
-                    giris = close
-
-                    stop = giris * 0.985
-                    hedef1 = giris * 1.015
-                    hedef2 = giris * 1.030
-
-                    mesaj = (
-                        "🟢 *LONG SİNYALİ - KIRILIM* 🟢\n\n"
-                        f"🪙 *Parite:* `{symbol}`\n"
-                        f"📍 *Seviye:* {tf} Kırılımı\n\n"
-                        f"📥 *Giriş:* `{giris:.6f}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.6f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.6f}`\n"
-                        f"🛑 *Stop:* `{stop:.6f}`\n\n"
-                        "📊 *Kaldıraç:* Max 5x-10x"
-                    )
-
-                    print(
-                        f"🟢 LONG KIRILIM: "
-                        f"{symbol} - {tf}",
-                        flush=True
-                    )
-
-                    send_telegram_message(mesaj)
-
-                    return
-
-    except Exception as e:
-
-        print(
-            f"❌ {symbol} analiz hatası: "
-            f"{repr(e)}",
-            flush=True
-        )
-
-
-# =========================================================
-# TÜM PİYASAYI TARA
-# =========================================================
-
-def bot_run():
-
-    print(
-        f"\n[{time.strftime('%H:%M:%S')}] "
-        "📊 Piyasalar taranıyor...",
-        flush=True
-    )
-
-    try:
-
-        print(
-            "🔄 Binance piyasaları yükleniyor...",
-            flush=True
-        )
-
-        markets = exchange.load_markets()
-
-        print(
-            "✅ Binance piyasaları yüklendi.",
-            flush=True
-        )
-
-        symbols = [
-            s
-            for s in markets
-            if (
-                s.endswith("/USDT")
-                and markets[s].get("active")
-                and "UP/" not in s
-                and "DOWN/" not in s
-            )
-        ]
-
-        print(
-            f"🔎 {len(symbols)} parite bulundu.",
-            flush=True
-        )
-
-        for index, symbol in enumerate(symbols, start=1):
-
-            print(
-                f"📈 Analiz: {index}/{len(symbols)} - {symbol}",
-                flush=True
-            )
-
-            analyze_symbol(symbol)
-
-            time.sleep(0.3)
-
-        print(
-            "✅ Piyasa taraması tamamlandı.",
-            flush=True
-        )
-
-    except Exception as e:
-
-        print(
-            "❌ Piyasa tarama hatası:",
-            repr(e),
-            flush=True
-        )
-
-
-# =========================================================
-# SCHEDULER
-# =========================================================
-
-def run_scheduler():
-
-    print(
-        "🚀 CalmCapital bot başlatılıyor...",
-        flush=True
-    )
-
-    # Telegram test mesajı
-    send_test_message()
-
-    print(
-        "🟢 Telegram test aşaması tamamlandı.",
-        flush=True
-    )
-
-    # Her 15 dakikada bir
-    schedule.every(15).minutes.do(bot_run)
-
-    print(
-        "⏰ 15 dakikalık tarama zamanlayıcısı kuruldu.",
-        flush=True
-    )
-
-    # Bot açılır açılmaz bir tarama
-    bot_run()
-
-    while True:
-
-        try:
-
-            schedule.run_pending()
-
-        except Exception as e:
-
-            print(
-                "❌ Scheduler hatası:",
-                repr(e),
-                flush=True
-            )
-
-        time.sleep(1)
-
-
-# =========================================================
-# PROGRAMI BAŞLAT
-# =========================================================
-
-if __name__ == "__main__":
-
-    print(
-        "======================================",
-        flush=True
-    )
-
-    print(
-        "🚀 CALMCAPITAL BAŞLATILIYOR",
-        flush=True
-    )
-
-    print(
-        "======================================",
-        flush=True
-    )
-
-    print(
-        "Telegram token durumu:",
-        "OK" if TELEGRAM_TOKEN else "YOK",
-        flush=True
-    )
-
-    print(
-        "Telegram chat ID durumu:",
-        "OK" if TELEGRAM_CHAT_ID else "YOK",
-        flush=True
-    )
-
-    # Scheduler ayrı thread
-    t = threading.Thread(
-        target=run_scheduler,
-        daemon=True
-    )
-
-    t.start()
-
-    print(
-        "🌐 Flask sunucusu başlatılıyor...",
-        flush=True
-    )
-
-    # Flask / Render
-    run_flask()
+    for tf_name,_
+```
