@@ -400,10 +400,11 @@ def analyze_symbol(symbol):
 
 def bot_run():
 
-    print(
-        f"\n[{time.strftime('%H:%M:%S')}] "
-        "📊 Piyasalar taranıyor..."
-    )
+   print(
+    f"\n[{time.strftime('%H:%M:%S')}] "
+    "📊 Piyasalar taranıyor...",
+    flush=True
+)
 
     try:
 
