@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "CalmCapital Kurumsal Short Botu Aktif! ⏳🚀"
+    return "CalmCapital Çift Yönlü Kurumsal Bot Aktif! ⏳🚀"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -97,36 +97,31 @@ def calculate_adx(high, low, close, period=14):
     return adx
 
 # --- KONTROL FONKSİYONLARI (Zaman Dilimleri) ---
-def check_monthly_weekly_bias(symbol):
-    """Aylık ve Haftalık Bias Kontrolü: Bearish / Nötr-Bearish ve Haftalık EMA altında"""
+def check_macro_bias(symbol):
+    """Aylık ve Haftalık Yön Teyidi"""
     try:
         # Haftalık Kontrol
         w_bars = fetch_ohlcv(symbol, '1w', limit=30)
         if len(w_bars) < 25:
-            return False
+            return None
         w_df = pd.DataFrame(w_bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
         w_ema21 = w_df["close"].ewm(span=21, adjust=False).mean().iloc[-1]
         w_close = w_df["close"].iloc[-1]
         
-        if w_close > w_ema21:
-            return False # Haftalık EMA üzerindeyse short iptal
-            
         # Aylık Kontrol
         m_bars = fetch_ohlcv(symbol, '1M', limit=15)
-        if len(m_bars) >= 10:
-            m_df = pd.DataFrame(m_bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
-            m_open = m_df["open"].iloc[-1]
-            m_close = m_df["close"].iloc[-1]
-            # Aylık kırmızı veya yatay/baskılı ise kabul (Bearish / Nötr-Bearish)
-            if m_close > m_open * 1.05: # Çok sert aylık yeşilse geç
-                return False
-                
-        return True
+        m_df = pd.DataFrame(m_bars, columns=["timestamp", "open", "high", "low", "close", "volume"]) if len(m_bars) >= 10 else None
+        
+        if w_close > w_ema21:
+            return "BULLISH"
+        elif w_close < w_ema21:
+            return "BEARISH"
     except Exception:
-        return False
+        pass
+    return None
 
-def check_daily_filter(symbol):
-    """Günlük: EMA 20/50 altında + RSI < 50"""
+def check_daily_filter(symbol, trend_direction):
+    """Günlük: EMA 20/50 ve RSI Kontrolü"""
     try:
         bars = fetch_ohlcv(symbol, '1d', limit=60)
         if len(bars) < 55:
@@ -138,21 +133,26 @@ def check_daily_filter(symbol):
         
         last = df.iloc[-1]
         close = last["close"]
-        if close < last["EMA_20"] and close < last["EMA_50"] and last["RSI"] < 50:
-            return True
+        rsi = last["RSI"]
+        
+        if trend_direction == "BEARISH":
+            if close < last["EMA_20"] and close < last["EMA_50"] and rsi < 50:
+                return True
+        elif trend_direction == "BULLISH":
+            if close > last["EMA_20"] and close > last["EMA_50"] and rsi > 50:
+                return True
     except Exception:
         pass
     return False
 
-def check_12h_filter(symbol):
-    """12 Saatlik: MACD Bearish + ADX > 25"""
+def check_12h_filter(symbol, trend_direction):
+    """12 Saatlik: MACD ve ADX > 25 Kontrolü"""
     try:
         bars = fetch_ohlcv(symbol, '12h', limit=50)
         if len(bars) < 40:
             return False
         df = pd.DataFrame(bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
         
-        # MACD Hesaplama (12, 26, 9)
         exp1 = df["close"].ewm(span=12, adjust=False).mean()
         exp2 = df["close"].ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
@@ -164,14 +164,17 @@ def check_12h_filter(symbol):
         last_signal = signal.iloc[-1]
         last_adx = adx.iloc[-1]
         
-        if last_macd < last_signal and last_adx > 25:
-            return True
+        if last_adx > 25:
+            if trend_direction == "BEARISH" and last_macd < last_signal:
+                return True
+            elif trend_direction == "BULLISH" and last_macd > last_signal:
+                return True
     except Exception:
         pass
     return False
 
-def get_pivot_resistance(symbol):
-    """4 Saatlik Pivot R1 ve R2 Seviyeleri"""
+def get_pivot_levels(symbol):
+    """4 Saatlik Pivot Seviyeleri (Destek ve Direnç)"""
     try:
         bars = fetch_ohlcv(symbol, '4h', limit=3)
         if len(bars) < 2:
@@ -181,25 +184,28 @@ def get_pivot_resistance(symbol):
         pivot = (high + low + close) / 3
         r1 = (2 * pivot) - low
         r2 = pivot + (high - low)
-        return {"R1": r1, "R2": r2}
+        s1 = (2 * pivot) - high
+        s2 = pivot - (high - low)
+        return {"R1": r1, "R2": r2, "S1": s1, "S2": s2}
     except Exception:
         return None
 
 def analyze_symbol(symbol):
     try:
-        # 1. Aşama: Aylık ve Haftalık Bias Kontrolü
-        if not check_monthly_weekly_bias(symbol):
+        # 1. Aşama: Makro Yön Teyidi (Aylık/Haftalık)
+        bias = check_macro_bias(symbol)
+        if not bias:
             return
             
-        # 2. Aşama: Günlük Filtre (EMA 20/50 altı + RSI < 50)
-        if not check_daily_filter(symbol):
+        # 2. Aşama: Günlük Filtre
+        if not check_daily_filter(symbol, bias):
             return
             
-        # 3. Aşama: 12 Saatlik Filtre (MACD Bearish + ADX > 25)
-        if not check_12h_filter(symbol):
+        # 3. Aşama: 12 Saatlik Filtre
+        if not check_12h_filter(symbol, bias):
             return
             
-        # 4. Aşama: 4 Saatlik Tetiklenme (Direnç Retest + RSI Aşağı Dönüş + Hacim Artışı)
+        # 4. Aşama: 4 Saatlik Tetiklenme (Retest + RSI Dönüşü + Hacim Artışı)
         bars = fetch_ohlcv(symbol, '4h', limit=30)
         if len(bars) < 25:
             return
@@ -210,57 +216,73 @@ def analyze_symbol(symbol):
         df["RSI"] = calculate_rsi(df["close"], 14)
         df["vol_sma"] = df["volume"].rolling(window=10).mean()
         
-        last = df.iloc.values[-1]
-        prev = df.iloc.values[-2]
-        
         close = float(df["close"].iloc[-1])
         vol = float(df["volume"].iloc[-1])
         vol_avg = float(df["vol_sma"].iloc[-1])
         
-        # Hacim Artışı (Ortalamanın üstünde hacim)
+        # Hacim Artışı Kontrolü
         if pd.isna(vol_avg) or vol <= vol_avg * 1.3:
             return
             
-        # 4H RSI tekrar aşağı dönüyor olmalı (Örn: Önceki mumda yukarı yönlüydü veya tepedeydi, şimdi düşüyor)
         rsi_last = float(df["RSI"].iloc[-1])
         rsi_prev = float(df["RSI"].iloc[-2])
-        if rsi_last >= rsi_prev: # RSI düşüşte değilse es geç
-            return
-            
-        # Direnç Retest Kontrolü (Pivot R1 veya R2 yakınlaşması)
-        pivots = get_pivot_resistance(symbol)
+        pivots = get_pivot_levels(symbol)
         if not pivots:
             return
             
-        r1, r2 = pivots["R1"], pivots["R2"]
-        at_resistance = (r1 * 0.997 <= close <= r1 * 1.003) or (r2 * 0.997 <= close <= r2 * 1.003) or (close >= r1)
-        
-        if not at_resistance:
-            return
-            
-        # Tüm kurallar kusursuz sağlandı -> Sinyal Gönder!
         clean_symbol = symbol.split(':')[0].replace("/", "")
-        giris = close
-        stop = giris * 1.04       # %4 Stop
-        hedef1 = giris * 0.90     # %10 TP1
-        hedef2 = giris * 0.80     # %20 TP2
         
-        mesaj = (
-            f"🚨 *KURUMSAL SHORT SİNYALİ* 🚨\n"
-            f"🪙 *Parite:* `{clean_symbol}` (4S Direnç Retest)\n\n"
-            f"📥 *Giriş Fiyatı:* `{giris}`\n"
-            f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
-            f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
-            f"🛑 *Stop (%4):* `{stop:.4f}`\n"
-            f"📊 *Kaldıraç:* Max 5x"
-        )
-        send_telegram_message(mesaj)
-        
+        # --- SHORT SENARYOSU ---
+        if bias == "BEARISH":
+            if rsi_last >= rsi_prev: # RSI düşüşte olmalı
+                return
+            r1, r2 = pivots["R1"], pivots["R2"]
+            at_resistance = (r1 * 0.997 <= close <= r1 * 1.003) or (r2 * 0.997 <= close <= r2 * 1.003) or (close >= r1)
+            
+            if at_resistance:
+                giris = close
+                stop = giris * 1.04
+                hedef1 = giris * 0.90
+                hedef2 = giris * 0.80
+                mesaj = (
+                    f"🚨 *KURUMSAL SHORT SİNYALİ* 🚨\n"
+                    f"🪙 *Parite:* `{clean_symbol}` (4S Direnç Retest)\n\n"
+                    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                    f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
+                    f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
+                    f"🛑 *Stop (%4):* `{stop:.4f}`\n"
+                    f"📊 *Kaldıraç:* Max 5x"
+                )
+                send_telegram_message(mesaj)
+                
+        # --- LONG SENARYOSU ---
+        elif bias == "BULLISH":
+            if rsi_last <= rsi_prev: # RSI yükselişte olmalı
+                return
+            s1, s2 = pivots["S1"], pivots["S2"]
+            at_support = (s1 * 0.997 <= close <= s1 * 1.003) or (s2 * 0.997 <= close <= s2 * 1.003) or (close <= s1)
+            
+            if at_support:
+                giris = close
+                stop = giris * 0.96
+                hedef1 = giris * 1.10
+                hedef2 = giris * 1.20
+                mesaj = (
+                    f"🟢 *KURUMSAL LONG SİNYALİ* 🟢\n"
+                    f"🪙 *Parite:* `{clean_symbol}` (4S Destek Retest)\n\n"
+                    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                    f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
+                    f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
+                    f"🛑 *Stop (%4):* `{stop:.4f}`\n"
+                    f"📊 *Kaldıraç:* Max 5x"
+                )
+                send_telegram_message(mesaj)
+                
     except Exception:
         pass
 
 def bot_run():
-    print(f"\n[{time.strftime('%H:%M:%S')}] Kurumsal Multi-TF Short taraması başlıyor...", flush=True)
+    print(f"\n[{time.strftime('%H:%M:%S')}] Çift Yönlü Kurumsal tarama başlıyor...", flush=True)
     symbols = get_symbols()
     if symbols:
         for symbol in symbols:
@@ -269,7 +291,7 @@ def bot_run():
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
-    print("CalmCapital kurumsal bot başlatılıyor...", flush=True)
+    print("CalmCapital çift yönlü bot başlatılıyor...", flush=True)
     send_test_message()
     schedule.every(15).minutes.do(bot_run)
     bot_run()
