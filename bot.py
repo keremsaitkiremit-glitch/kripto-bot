@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "CalmCapital Short Odaklı Modda Tarıyor! ⏳🚀"
+    return "CalmCapital Short & MA Direnç Modunda Tarıyor! ⏳🚀"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -61,7 +61,7 @@ def get_symbols():
         print(f"Pariteler alınamadı: {repr(e)}", flush=True)
         return []
 
-def fetch_ohlcv(symbol, timeframe, limit=100):
+def fetch_ohlcv(symbol, timeframe, limit=250):
     try:
         bars = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         return bars
@@ -80,10 +80,28 @@ def check_higher_timeframe_trend(symbol):
         
         last = df.iloc[-1]
         if last["EMA_9"] < last["EMA_21"]:
-            return "BEARISH" # 4H Düşüş trendinde
+            return "BEARISH"
     except Exception:
         pass
     return None
+
+def get_daily_ma_levels(symbol):
+    """Günlük (1d) grafikte 21, 50, 100 ve 200 günlük hareketli ortalamaları hesaplar"""
+    try:
+        bars = fetch_ohlcv(symbol, '1d', limit=220)
+        if len(bars) < 200:
+            return {}
+        df = pd.DataFrame(bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        
+        ma_levels = {
+            "Günlük MA 21": float(df["close"].rolling(window=21).mean().iloc[-1]),
+            "Günlük MA 50": float(df["close"].rolling(window=50).mean().iloc[-1]),
+            "Günlük MA 100": float(df["close"].rolling(window=100).mean().iloc[-1]),
+            "Günlük MA 200": float(df["close"].rolling(window=200).mean().iloc[-1])
+        }
+        return ma_levels
+    except Exception:
+        return {}
 
 def get_mtf_levels(symbol):
     levels = {}
@@ -118,7 +136,7 @@ def get_mtf_levels(symbol):
 
 def analyze_symbol(symbol):
     try:
-        # 1. 4 Saatlik ana trend düşüşte mi? Değilse direkt ele.
+        # 1. 4 Saatlik ana trend düşüşte mi?
         htf_trend = check_higher_timeframe_trend(symbol)
         if htf_trend != "BEARISH":
             return
@@ -145,38 +163,54 @@ def analyze_symbol(symbol):
             return
             
         mtf_levels = get_mtf_levels(symbol)
-        if not mtf_levels:
+        daily_mas = get_daily_ma_levels(symbol)
+        
+        if not mtf_levels and not daily_mas:
             return
             
         clean_symbol = symbol.split(':')[0].replace("/", "")
             
-        # 3. 15m'de de EMA 9 < EMA 21 (Short teyidi)
+        # 3. 15m'de EMA 9 < EMA 21 (Short teyidi)
         if ema9 < ema21:
+            triggered_level = None
+            
+            # A. Pivot Dirençleri Kontrolü (R1 veya R2)
             for tf, lvl in mtf_levels.items():
                 r1, r2 = lvl["R1"], lvl["R2"]
-                # Direnç bölgesi teması
                 if (r1 * 0.998 <= close <= r1 * 1.002) or (r2 * 0.998 <= close <= r2 * 1.002):
-                    giris = close
-                    stop = giris * 1.04       # %4 Stop
-                    hedef1 = giris * 0.90     # %10 TP1
-                    hedef2 = giris * 0.80     # %20 TP2
-                    
-                    mesaj = (
-                        f"🚨 *SHORT SİNYALİ* 🚨\n"
-                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Direnci)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
-                        f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
-                        f"🛑 *Stop (%4):* `{stop:.4f}`\n"
-                        f"📊 *Kaldıraç:* Max 5x"
-                    )
-                    send_telegram_message(mesaj)
-                    return
+                    triggered_level = f"{tf} Direnci"
+                    break
+            
+            # B. Günlük MA Dirençleri Kontrolü (21, 50, 100, 200)
+            if not triggered_level and daily_mas:
+                for ma_name, ma_value in daily_mas.items():
+                    if ma_value and (ma_value * 0.997 <= close <= ma_value * 1.003):
+                        triggered_level = ma_name
+                        break
+            
+            # Eğer herhangi bir direnç veya MA seviyesine temas/çarpma varsa Sinyal Gönder
+            if triggered_level:
+                giris = close
+                stop = giris * 1.04       # %4 Stop
+                hedef1 = giris * 0.90     # %10 TP1
+                hedef2 = giris * 0.80     # %20 TP2
+                
+                mesaj = (
+                    f"🚨 *SHORT SİNYALİ* 🚨\n"
+                    f"🪙 *Parite:* `{clean_symbol}` ({triggered_level})\n\n"
+                    f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                    f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
+                    f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
+                    f"🛑 *Stop (%4):* `{stop:.4f}`\n"
+                    f"📊 *Kaldıraç:* Max 5x"
+                )
+                send_telegram_message(mesaj)
+                return
     except Exception:
         pass
 
 def bot_run():
-    print(f"\n[{time.strftime('%H:%M:%S')}] Short odaklı piyasa taraması...", flush=True)
+    print(f"\n[{time.strftime('%H:%M:%S')}] Short & MA Direnç taraması başlıyor...", flush=True)
     symbols = get_symbols()
     if symbols:
         for symbol in symbols:
@@ -185,7 +219,7 @@ def bot_run():
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
-    print("CalmCapital short bot başlatılıyor...", flush=True)
+    print("CalmCapital short & MA bot başlatılıyor...", flush=True)
     send_test_message()
     schedule.every(15).minutes.do(bot_run)
     bot_run()
