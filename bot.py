@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "CalmCapital piyasaları tarıyor! ⏳🚀"
+    return "CalmCapital Short Odaklı Modda Tarıyor! ⏳🚀"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -36,9 +36,9 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 ")
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 (Mod: Yalnızca Short)")
 
-# === BORSAYA BAĞLANTI (MEXC Futures - İlk 500 Parite) ===
+# === BORSAYA BAĞLANTI (MEXC Futures - İlk 500 Yüksek Hacimli Parite) ===
 exchange = ccxt.mexc({
     'options': {'defaultType': 'swap'},
     'enableRateLimit': True
@@ -54,9 +54,7 @@ def get_symbols():
             and markets[s].get('active') 
             and markets[s].get('quote') == 'USDT'
         ]
-        # Hacimli ve popüler ilk 500 parite
         symbols = sorted(list(set(symbols)))[:500]
-        
         print(f"{len(symbols)} USDT paritesi (ilk 500) yüklendi.", flush=True)
         return symbols
     except Exception as e:
@@ -69,6 +67,23 @@ def fetch_ohlcv(symbol, timeframe, limit=100):
         return bars
     except Exception:
         return []
+
+def check_higher_timeframe_trend(symbol):
+    """4 Saatlik grafikte ana trendin düşüşte (BEARISH) olup olmadığını kontrol eder"""
+    try:
+        bars = fetch_ohlcv(symbol, '4h', limit=30)
+        if len(bars) < 25:
+            return None
+        df = pd.DataFrame(bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["EMA_9"] = df["close"].ewm(span=9, adjust=False).mean()
+        df["EMA_21"] = df["close"].ewm(span=21, adjust=False).mean()
+        
+        last = df.iloc[-1]
+        if last["EMA_9"] < last["EMA_21"]:
+            return "BEARISH" # 4H Düşüş trendinde
+    except Exception:
+        pass
+    return None
 
 def get_mtf_levels(symbol):
     levels = {}
@@ -103,6 +118,12 @@ def get_mtf_levels(symbol):
 
 def analyze_symbol(symbol):
     try:
+        # 1. 4 Saatlik ana trend düşüşte mi? Değilse direkt ele.
+        htf_trend = check_higher_timeframe_trend(symbol)
+        if htf_trend != "BEARISH":
+            return
+
+        # 2. 15 Dakikalık veriler
         bars = fetch_ohlcv(symbol, '15m', limit=100)
         if len(bars) < 50:
             return
@@ -119,8 +140,8 @@ def analyze_symbol(symbol):
         hacim = float(son_mum["volume"])
         hacim_ortalamasi = float(son_mum["vol_sma"])
         
-        # Hacim Filtresi (Ortalamanın 1.8 katı hacim patlaması)
-        if pd.isna(hacim_ortalamasi) or hacim <= hacim_ortalamasi * 1.8:
+        # Sert Hacim Filtresi: Ortalamanın en az 2.5 katı hacim
+        if pd.isna(hacim_ortalamasi) or hacim <= hacim_ortalamasi * 2.5:
             return
             
         mtf_levels = get_mtf_levels(symbol)
@@ -129,15 +150,16 @@ def analyze_symbol(symbol):
             
         clean_symbol = symbol.split(':')[0].replace("/", "")
             
-        # SHORT SİNYALİ (EMA 9 < EMA 21 ve Direnç Teması)
+        # 3. 15m'de de EMA 9 < EMA 21 (Short teyidi)
         if ema9 < ema21:
             for tf, lvl in mtf_levels.items():
                 r1, r2 = lvl["R1"], lvl["R2"]
-                if (r1 * 0.997 <= close <= r1 * 1.003) or (r2 * 0.997 <= close <= r2 * 1.003):
+                # Direnç bölgesi teması
+                if (r1 * 0.998 <= close <= r1 * 1.002) or (r2 * 0.998 <= close <= r2 * 1.002):
                     giris = close
-                    stop = giris * 1.04       # %4 Stop-Loss
-                    hedef1 = giris * 0.90     # %10 Min Hedef (TP1)
-                    hedef2 = giris * 0.80     # %20 İkinci Hedef (TP2)
+                    stop = giris * 1.04       # %4 Stop
+                    hedef1 = giris * 0.90     # %10 TP1
+                    hedef2 = giris * 0.80     # %20 TP2
                     
                     mesaj = (
                         f"🚨 *SHORT SİNYALİ* 🚨\n"
@@ -146,48 +168,7 @@ def analyze_symbol(symbol):
                         f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
                         f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
                         f"🛑 *Stop (%4):* `{stop:.4f}`\n"
-                        f"📊 *Kaldıraç:* Max 5x-10x"
-                    )
-                    send_telegram_message(mesaj)
-                    return
-                    
-        # LONG SİNYALİ (EMA 9 > EMA 21 ve Destek Teması / Kırılım)
-        elif ema9 > ema21:
-            for tf, lvl in mtf_levels.items():
-                s1, r1 = lvl["S1"], lvl["R1"]
-                
-                if s1 * 0.997 <= close <= s1 * 1.003:
-                    giris = close
-                    stop = giris * 0.96       # %4 Stop-Loss
-                    hedef1 = giris * 1.10     # %10 Min Hedef (TP1)
-                    hedef2 = giris * 1.20     # %20 İkinci Hedef (TP2)
-                    
-                    mesaj = (
-                        f"🟢 *LONG SİNYALİ* 🟢\n"
-                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Desteği)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1 (%10):* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2 (%20):* `{hedef2:.4f}`\n"
-                        f"🛑 *Zarar Durdurma (%4):* `{stop:.4f}`\n"
-                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
-                    )
-                    send_telegram_message(mesaj)
-                    return
-                    
-                if r1 < close < r1 * 1.006:
-                    giris = close
-                    stop = giris * 0.96       # %4 Stop-Loss
-                    hedef1 = giris * 1.10     # %10 Min Hedef (TP1)
-                    hedef2 = giris * 1.20     # %20 İkinci Hedef (TP2)
-                    
-                    mesaj = (
-                        f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
-                        f"🪙 *Parite:* `{clean_symbol}` ({tf} Kırılımı)\n\n"
-                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1 (%10):* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2 (%20):* `{hedef2:.4f}`\n"
-                        f"🛑 *Zarar Durdurma (%4):* `{stop:.4f}`\n"
-                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
+                        f"📊 *Kaldıraç:* Max 5x"
                     )
                     send_telegram_message(mesaj)
                     return
@@ -195,7 +176,7 @@ def analyze_symbol(symbol):
         pass
 
 def bot_run():
-    print(f"\n[{time.strftime('%H:%M:%S')}] Piyasalar taranıyor...", flush=True)
+    print(f"\n[{time.strftime('%H:%M:%S')}] Short odaklı piyasa taraması...", flush=True)
     symbols = get_symbols()
     if symbols:
         for symbol in symbols:
@@ -204,7 +185,7 @@ def bot_run():
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
-    print("CalmCapital bot başlatılıyor...", flush=True)
+    print("CalmCapital short bot başlatılıyor...", flush=True)
     send_test_message()
     schedule.every(15).minutes.do(bot_run)
     bot_run()
