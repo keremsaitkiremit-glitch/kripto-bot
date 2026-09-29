@@ -42,13 +42,9 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message(
-        "🚀 *CalmCapital Başlatıldı!*\n\n"
-        "Bot başarıyla çalışıyor.\n"
-        "📊 Bybit Futures (CCXT) piyasaları taranıyor..."
-    )
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀")
 
-# CCXT üzerinden Bybit Futures bağlantısı (403 hatasını engeller)
+# CCXT üzerinden Bybit Futures bağlantısı
 exchange = ccxt.bybit({
     'options': {'defaultType': 'swap'},
     'enableRateLimit': True
@@ -145,14 +141,13 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 0.970
                     
                     mesaj = (
-                        "🚨 *SHORT SİNYALİ* 🚨\n\n"
-                        f"🪙 Parite: `{symbol}`\n"
-                        f"📍 Seviye: {tf} Direnci\n\n"
-                        f"📥 Giriş: `{giris:.6f}`\n"
-                        f"🎯 TP1: `{hedef1:.6f}`\n"
-                        f"🎯 TP2: `{hedef2:.6f}`\n"
-                        f"🛑 Stop: `{stop:.6f}`\n\n"
-                        "📊 Kaldıraç: Max 5x-10x"
+                        f"🚨 *SHORT SİNYALİ* 🚨\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Direnci)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *TP1:* `{hedef1:.4f}`\n"
+                        f"🎯 *TP2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
                     return
@@ -168,14 +163,13 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030
                     
                     mesaj = (
-                        "🟢 *LONG SİNYALİ* 🟢\n\n"
-                        f"🪙 Parite: `{symbol}`\n"
-                        f"📍 Seviye: {tf} Desteği\n\n"
-                        f"📥 Giriş: `{giris:.6f}`\n"
-                        f"🎯 Hedef 1: `{hedef1:.6f}`\n"
-                        f"🎯 Hedef 2: `{hedef2:.6f}`\n"
-                        f"🛑 Stop: `{stop:.6f}`\n\n"
-                        "📊 Kaldıraç: Max 5x-10x"
+                        f"🟢 *LONG SİNYALİ* 🟢\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Desteği)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
                     return
@@ -187,14 +181,13 @@ def analyze_symbol(symbol):
                     hedef2 = giris * 1.030
                     
                     mesaj = (
-                        "🟢 *LONG KIRILIM SİNYALİ* 🟢\n\n"
-                        f"🪙 Parite: `{symbol}`\n"
-                        f"📍 Seviye: {tf} Kırılımı\n\n"
-                        f"📥 Giriş: `{giris:.6f}`\n"
-                        f"🎯 Hedef 1: `{hedef1:.6f}`\n"
-                        f"🎯 Hedef 2: `{hedef2:.6f}`\n"
-                        f"🛑 Stop: `{stop:.6f}`\n\n"
-                        "📊 Kaldıraç: Max 5x-10x"
+                        f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
+                        f"🪙 *Parite:* `{symbol}` ({tf} Kırılımı)\n\n"
+                        f"📥 *Giriş Fiyatı:* `{giris}`\n"
+                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
                     return
