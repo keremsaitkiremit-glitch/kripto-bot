@@ -37,7 +37,7 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 (Mod: Kurumsal Multi-TF Short)")
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 ")
 
 # === BORSAYA BAĞLANTI (MEXC Futures - İlk 500 Yüksek Hacimli Parite) ===
 exchange = ccxt.mexc({
