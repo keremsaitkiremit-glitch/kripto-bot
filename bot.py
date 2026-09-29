@@ -36,9 +36,9 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀")
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 (Min Hedef: %10)")
 
-# === BORSAYA BAĞLANTI (MEXC Futures - 500 Sınırı) ===
+# === BORSAYA BAĞLANTI (MEXC Futures - İlk 500 Parite) ===
 exchange = ccxt.mexc({
     'options': {'defaultType': 'swap'},
     'enableRateLimit': True
@@ -54,7 +54,7 @@ def get_symbols():
             and markets[s].get('active') 
             and markets[s].get('quote') == 'USDT'
         ]
-        # Hacimli ve popüler ilk 500 parite ile sınırlandırıyoruz
+        # Hacimli ve popüler ilk 500 parite
         symbols = sorted(list(set(symbols)))[:500]
         
         print(f"{len(symbols)} USDT paritesi (ilk 500) yüklendi.", flush=True)
@@ -119,6 +119,7 @@ def analyze_symbol(symbol):
         hacim = float(son_mum["volume"])
         hacim_ortalamasi = float(son_mum["vol_sma"])
         
+        # Hacim Filtresi (Ortalamanın 1.8 katı hacim patlaması)
         if pd.isna(hacim_ortalamasi) or hacim <= hacim_ortalamasi * 1.8:
             return
             
@@ -128,44 +129,46 @@ def analyze_symbol(symbol):
             
         clean_symbol = symbol.split(':')[0].replace("/", "")
             
+        # SHORT SİNYALİ (EMA 9 < EMA 21 ve Direnç Teması)
         if ema9 < ema21:
             for tf, lvl in mtf_levels.items():
                 r1, r2 = lvl["R1"], lvl["R2"]
                 if (r1 * 0.997 <= close <= r1 * 1.003) or (r2 * 0.997 <= close <= r2 * 1.003):
                     giris = close
-                    stop = giris * 1.015
-                    hedef1 = giris * 0.985
-                    hedef2 = giris * 0.970
+                    stop = giris * 1.04       # %4 Stop-Loss
+                    hedef1 = giris * 0.90     # %10 Min Hedef (TP1)
+                    hedef2 = giris * 0.80     # %20 İkinci Hedef (TP2)
                     
                     mesaj = (
                         f"🚨 *SHORT SİNYALİ* 🚨\n"
                         f"🪙 *Parite:* `{clean_symbol}` ({tf} Direnci)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *TP1:* `{hedef1:.4f}`\n"
-                        f"🎯 *TP2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Stop:* `{stop:.4f}`\n"
+                        f"🎯 *TP1 (%10):* `{hedef1:.4f}`\n"
+                        f"🎯 *TP2 (%20):* `{hedef2:.4f}`\n"
+                        f"🛑 *Stop (%4):* `{stop:.4f}`\n"
                         f"📊 *Kaldıraç:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
                     return
                     
+        # LONG SİNYALİ (EMA 9 > EMA 21 ve Destek Teması / Kırılım)
         elif ema9 > ema21:
             for tf, lvl in mtf_levels.items():
                 s1, r1 = lvl["S1"], lvl["R1"]
                 
                 if s1 * 0.997 <= close <= s1 * 1.003:
                     giris = close
-                    stop = giris * 0.985
-                    hedef1 = giris * 1.015
-                    hedef2 = giris * 1.030
+                    stop = giris * 0.96       # %4 Stop-Loss
+                    hedef1 = giris * 1.10     # %10 Min Hedef (TP1)
+                    hedef2 = giris * 1.20     # %20 İkinci Hedef (TP2)
                     
                     mesaj = (
                         f"🟢 *LONG SİNYALİ* 🟢\n"
                         f"🪙 *Parite:* `{clean_symbol}` ({tf} Desteği)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"🎯 *Hedef 1 (%10):* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2 (%20):* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma (%4):* `{stop:.4f}`\n"
                         f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
@@ -173,17 +176,17 @@ def analyze_symbol(symbol):
                     
                 if r1 < close < r1 * 1.006:
                     giris = close
-                    stop = giris * 0.985
-                    hedef1 = giris * 1.015
-                    hedef2 = giris * 1.030
+                    stop = giris * 0.96       # %4 Stop-Loss
+                    hedef1 = giris * 1.10     # %10 Min Hedef (TP1)
+                    hedef2 = giris * 1.20     # %20 İkinci Hedef (TP2)
                     
                     mesaj = (
                         f"🟢 *LONG SİNYALİ (Kırılım)* 🟢\n"
                         f"🪙 *Parite:* `{clean_symbol}` ({tf} Kırılımı)\n\n"
                         f"📥 *Giriş Fiyatı:* `{giris}`\n"
-                        f"🎯 *Hedef 1:* `{hedef1:.4f}`\n"
-                        f"🎯 *Hedef 2:* `{hedef2:.4f}`\n"
-                        f"🛑 *Zarar Durdurma:* `{stop:.4f}`\n"
+                        f"🎯 *Hedef 1 (%10):* `{hedef1:.4f}`\n"
+                        f"🎯 *Hedef 2 (%20):* `{hedef2:.4f}`\n"
+                        f"🛑 *Zarar Durdurma (%4):* `{stop:.4f}`\n"
                         f"📊 *Kaldıraç Önerisi:* Max 5x-10x"
                     )
                     send_telegram_message(mesaj)
