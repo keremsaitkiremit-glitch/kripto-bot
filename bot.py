@@ -37,27 +37,24 @@ def send_telegram_message(message):
 
 def send_test_message():
     send_telegram_message(
-        "🚀 *CalmCapital Başlatıldı!*\n\n"
-        "Bot başarıyla çalışıyor.\n"
-        "📊 Binance Futures piyasaları taranıyor..."
+        "CalmCapital piyasaları tarıyor! ⏳🚀"
     )
 
-# === BORSAYA BAĞLANTI (Binance Futures - Engelsiz) ===
-exchange = ccxt.binance({
-    'options': {'defaultType': 'future'},
+# === BORSAYA BAĞLANTI (MEXC Futures - 451/403 Bypass) ===
+exchange = ccxt.mexc({
+    'options': {'defaultType': 'swap'},
     'enableRateLimit': True
 })
 
 def get_symbols():
-    print("Binance USDT Futures pariteleri yükleniyor...", flush=True)
+    print("MEXC USDT Futures pariteleri yükleniyor...", flush=True)
     try:
         markets = exchange.load_markets()
         symbols = [
             s for s in markets 
-            if s.endswith('/USDT') 
-            and markets[s]['active'] 
-            and not 'UP/' in s 
-            and not 'DOWN/' in s
+            if markets[s].get('swap') 
+            and markets[s].get('active') 
+            and markets[s].get('quote') == 'USDT'
         ]
         print(f"{len(symbols)} USDT paritesi bulundu.", flush=True)
         return symbols
@@ -128,8 +125,8 @@ def analyze_symbol(symbol):
         if not mtf_levels:
             return
             
-        # Binance'de aratması kolay olsun diye "BTC/USDT" yerine "BTCUSDT" yazdırıyoruz
-        clean_symbol = symbol.replace("/", "")
+        # MEXC sembolü "BTC/USDT:USDT" gibi gelir. Temizleyip standart "BTCUSDT" yapıyoruz.
+        clean_symbol = symbol.split(':')[0].replace("/", "")
             
         if ema9 < ema21:
             for tf, lvl in mtf_levels.items():
@@ -200,7 +197,7 @@ def bot_run():
     if symbols:
         for symbol in symbols:
             analyze_symbol(symbol)
-            time.sleep(0.2)
+            time.sleep(0.25) # CCXT rate limit güvenliği
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
