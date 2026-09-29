@@ -25,12 +25,26 @@ TELEGRAM_CHAT_ID = '@CalmCappital'
 # Telegram'a açılış test mesajı gönder
 def send_test_message():
     message = "CalmCapital piyasaları tarıyor! ⏳🚀"
+
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message
+    }
+
     try:
-        requests.post(url, json=payload, timeout=10)
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=10
+        )
+
+        print("Telegram HTTP:", response.status_code)
+        print("Telegram cevap:", response.text)
+
     except Exception as e:
-        print(f"Test mesajı hatası: {e}")
+        print("Test mesajı hatası:", repr(e))
 
 exchange = ccxt.binance({
     'options': {'defaultType': 'future'},
