@@ -36,11 +36,9 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message(
-        "CalmCapital piyasaları tarıyor! ⏳🚀"
-    )
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀")
 
-# === BORSAYA BAĞLANTI (MEXC Futures - 451/403 Bypass) ===
+# === BORSAYA BAĞLANTI (MEXC Futures - 500 Sınırı) ===
 exchange = ccxt.mexc({
     'options': {'defaultType': 'swap'},
     'enableRateLimit': True
@@ -56,7 +54,10 @@ def get_symbols():
             and markets[s].get('active') 
             and markets[s].get('quote') == 'USDT'
         ]
-        print(f"{len(symbols)} USDT paritesi bulundu.", flush=True)
+        # Hacimli ve popüler ilk 500 parite ile sınırlandırıyoruz
+        symbols = sorted(list(set(symbols)))[:500]
+        
+        print(f"{len(symbols)} USDT paritesi (ilk 500) yüklendi.", flush=True)
         return symbols
     except Exception as e:
         print(f"Pariteler alınamadı: {repr(e)}", flush=True)
@@ -80,7 +81,7 @@ def get_mtf_levels(symbol):
     
     for tf_name, tf_code in timeframes.items():
         try:
-            bars = fetch_ohlcv(symbol, tf_code, limit=3)
+            bars = fetch_ohlcv(symbol, timeframe=tf_code, limit=3)
             if len(bars) < 2:
                 continue
                 
@@ -125,7 +126,6 @@ def analyze_symbol(symbol):
         if not mtf_levels:
             return
             
-        # MEXC sembolü "BTC/USDT:USDT" gibi gelir. Temizleyip standart "BTCUSDT" yapıyoruz.
         clean_symbol = symbol.split(':')[0].replace("/", "")
             
         if ema9 < ema21:
@@ -197,7 +197,7 @@ def bot_run():
     if symbols:
         for symbol in symbols:
             analyze_symbol(symbol)
-            time.sleep(0.25) # CCXT rate limit güvenliği
+            time.sleep(0.25)
     print("Tarama tamamlandı.", flush=True)
 
 def run_scheduler():
