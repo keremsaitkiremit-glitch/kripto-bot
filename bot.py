@@ -422,8 +422,9 @@ def bot_run():
         ]
 
         print(
-            f"🔎 {len(symbols)} parite bulundu."
-        )
+    f"🔎 {len(symbols)} parite bulundu.",
+    flush=True
+)
 
         for symbol in symbols:
 
@@ -431,7 +432,7 @@ def bot_run():
 
             time.sleep(0.3)
 
-        print("✅ Piyasa taraması tamamlandı.")
+        print("✅ Piyasa taraması tamamlandı.", flush=True)
 
     except Exception as e:
 
