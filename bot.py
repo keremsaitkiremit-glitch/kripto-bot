@@ -36,7 +36,7 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
-    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 (Min Hedef: %10)")
+    send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀 ")
 
 # === BORSAYA BAĞLANTI (MEXC Futures - İlk 500 Parite) ===
 exchange = ccxt.mexc({
