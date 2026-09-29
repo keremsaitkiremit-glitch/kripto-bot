@@ -8,6 +8,7 @@ from flask import Flask
 
 app = Flask(__name__)
 
+# Web sunucusu ana sayfası
 @app.route("/")
 def home():
     return "CalmCapital piyasaları tarıyor! ⏳🚀"
@@ -16,7 +17,7 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# === TELEGRAM AYARLARI ===
+# === TELEGRAM AYARLARI (Render Environment Variables'dan okur) ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "@CalmCappital")
 
@@ -35,13 +36,15 @@ def send_telegram_message(message):
         return False
 
 def send_test_message():
+    # Bot başlar başlamaz atılacak ilk mesaj
     send_telegram_message("CalmCapital piyasaları tarıyor! ⏳🚀")
 
-# CloudFront engelini (403) aşmak için tarayıcı kimliği (Headers) ekliyoruz
+# === BYBIT BAĞLANTISI (CloudFront 403 Bypass) ===
 BYBIT_BASE_URL = "https://api.bybit.com"
 session = requests.Session()
 session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json"
 })
 
 def bybit_get(endpoint, params=None):
@@ -238,6 +241,7 @@ def bot_run():
     if symbols:
         for symbol in symbols:
             analyze_symbol(symbol)
+            # IP engeline takılmamak için 0.25 saniye bekleme süresi
             time.sleep(0.25)
     print("Tarama tamamlandı.", flush=True)
 
