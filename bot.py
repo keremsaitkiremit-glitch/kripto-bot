@@ -28,6 +28,20 @@ def send_telegram_message(chat_id, message):
     except Exception:
         return False
 
+# --- OTOMATİK WEBHOOK KAYDI (Tarayıcı derdine son!) ---
+def setup_webhook_automatically():
+    if not TELEGRAM_TOKEN:
+        return
+    # Render servisinin kendi URL'sini otomatik yakalaması veya ortam değişkeninden alması
+    render_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if render_url:
+        webhook_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={render_url}/{TELEGRAM_TOKEN}"
+        try:
+            requests.get(webhook_url, timeout=5)
+            print("Webhook otomatik olarak kuruldu!", flush=True)
+        except Exception as e:
+            print(f"Webhook otomatik kurulum hatası: {e}", flush=True)
+
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -43,7 +57,7 @@ def fetch_ohlcv_data(symbol, timeframe, limit=50):
         return []
 
 def scan_volume_spikes():
-    """Hızlı hacim patlaması taraması"""
+    """Hacmi dikkat çekici şekilde artan (para giren) pariteleri tarar"""
     hot_coins = []
     try:
         markets = exchange.load_markets()
@@ -82,40 +96,26 @@ def scan_volume_spikes():
         return []
 
 def get_fundamental_and_news_context(ticker):
-    """
-    Sorulan coinin temel analiz, haber akışı, kilit açılışları, 
-    hype durumu ve olası long/short risklerini süzgeçten geçiren istihbarat modülü.
-    """
+    """Sorduğun coinin temel analiz, haber akışı ve long/short dinamikleri"""
     t = ticker.upper()
     
-    # Piyasada en çok takip edilen bazı popüler varlıklar için dinamik haber/temel senaryoları
     if t == "QNT":
         return (
             "📰 *Temel Analiz & Haber Akışı İstihbaratı:*\n"
-            "• *Hikaye:* Kurumsal birlikte çalışabilirlik ve CBDC (Merkez Bankası Dijital Para) entegrasyonları ana hikayesidir.\n"
-            "• *Long/Short Tetikleyicisi:* Kurumsal taraftan gelebilecek olumlu bir pilot proje haberi ani bir *Short Squeeze* (yukarı yönlü sert patlama) tetikleyebilir. Ancak haber akışı sessiz kaldığında düşük hacim nedeniyle piyasa baskısıyla aşağı yönlü süzülmeye (short eğilimine) meyillidir.\n"
-            "• *Strateji Notu:* Habersiz dönemde long açmak sabır ister; hacim patlaması görmeden işleme girilmemelidir."
+            "• *Hikaye:* Kurumsal birlikte çalışabilirlik ve CBDC entegrasyonları ana hikayesidir.\n"
+            "• *Long/Short Tetikleyicisi:* Kurumsal taraftan gelebilecek olumlu haberler ani bir *Short Squeeze* (yukarı yönlü sert patlama) tetikler. Habersiz dönemde ise düşük hacim nedeniyle aşağı yönlü süzülmeye meyillidir."
         )
     elif t == "BTC":
         return (
             "📰 *Temel Analiz & Haber Akışı İstihbaratı:*\n"
-            "• *Hikaye:* Spot ETF giriş/çıkışları, makro enflasyon verileri (TÜFE/Fed) ve küresel likidite koşulları.\n"
-            "• *Long/Short Tetikleyicisi:* Kurumsal fon girişlerinin yoğun olduğu günlerde destek retestleri kusursuz çalışır ve long yönlü güven verir. Makro FUD haberlerinde ise ilk silkeleme (long likidasyonu) sert olur.\n"
-            "• *Strateji Notu:* Haber akışı makro düzeyde takip edilmeli, Fed günlerinde kaldıraç minimuma indirilmelidir."
-        )
-    elif t == "ETH":
-        return (
-            "📰 *Temel Analiz & Haber Akışı İstihbaratı:*\n"
-            "• *Hikaye:* Katman-2 (L2) ağlarındaki veri ücretleri, staking oranları ve ekosistem güncellemeleri.\n"
-            "• *Long/Short Tetikleyicisi:* L2'lerdeki TVL (kilitli varlık) artışı temel long desteği sağlar. Ancak ağ içi aktivite düştüğünde piyasa lideri olmasına rağmen alternatiflerine göre zayıf kalıp short baskısı yiyebilir."
+            "• *Hikaye:* Spot ETF akışları ve makro enflasyon verileri (Fed) ana yönü belirler.\n"
+            "• *Long/Short Tetikleyicisi:* Fon girişlerinin olduğu günlerde destek retestleri long için kusursuz çalışır. Makro FUD haberlerinde ise ilk silkeleme (long likidasyonu) sert olur."
         )
     else:
-        # Genel dinamik şablon (Sorduğun diğer tüm coinler için)
         return (
             f"📰 *Temel Analiz & Haber Akışı İstihbaratı ({t}):*\n"
-            f"• *Proje & Sektör Dinamiği:* Varlık, sektörel trendler ve balina cüzdan hareketlerine duyarlıdır.\n"
-            f"• *Long/Short Tetikleyicisi:* Sosyal medya hype'ı ve olası bir proaktif gelişme (entegrasyon/haber) anlık FOMO ile long yönlü patlama yaratabilir. Temel bir FUD (güvensizlik/regülasyon) durumunda ise teknik destekler kırılırsa hızla short bölgeye evrilir.\n"
-            f"• *Strateji Notu:* Teknik seviyeler ile o anki hacim verisi birebir örtüşmeden pozisyon alınmamalıdır."
+            f"• *Sektör Dinamiği:* Varlık, sektörel trendlere ve balina cüzdan hareketlerine duyarlıdır.\n"
+            f"• *Long/Short Tetikleyicisi:* Sosyal medya hype'ı veya proaktif bir haber akışı ani FOMO ile long yönlü patlama yaratır. Temel bir FUD durumunda ise teknik destekler kırılırsa hızla short baskıya döner."
         )
 
 def perform_deep_analysis(ticker):
@@ -155,7 +155,7 @@ def perform_deep_analysis(ticker):
     vol_avg = float(df_1h["volume"].rolling(window=10).mean().iloc[-1])
     is_volume_spike = vol_current > (vol_avg * 2.0) if not pd.isna(vol_avg) else False
 
-    # Hacim varsa long baskısı önceliklidir
+    # Hacim varsa öncelik her zaman longdur
     tech_bias = "LONG (Hacim ve Temel Destekli Yükseliş)" if (close_1d > ema20_1d or is_volume_spike) else "SHORT (Satış Baskısı / Zayıf Temel)"
     
     giris = close_1h
@@ -184,13 +184,13 @@ def perform_deep_analysis(ticker):
         f"• *Hedef 1 (TP1):* `{tp1:.4f}`\n"
         f"• *Hedef 2 (TP2):* `{tp2:.4f}`\n\n"
         f"{fundamental_insight}\n\n"
-        f"⚠️ *Risk Yönetimi Uyarısı:* Haber akışı long yönlü desteklese bile piyasa anlık tersine dönebilir; stop-loss seviyeleri mutlak suretle uygulanmalıdır."
+        f"⚠️ *Risk Yönetimi Uyarısı:* Hacim ve temel hikaye long desteklese bile stop-loss seviyeleri mutlak suretle uygulanmalıdır."
     )
     return report
 
 @app.route("/", methods=["GET"])
 def home():
-    return "CalmCapital Haber & Teknik Entegre Analist Bot Aktif! ⏳🚀"
+    return "CalmCapital Kurumsal Analist Asistan Aktif ve Webhook Otomatik! ⏳🚀"
 
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def telegram_webhook():
@@ -203,7 +203,7 @@ def telegram_webhook():
             clean_text = text.replace("/analiz", "").replace("@", "").strip().upper()
             
             if clean_text == "HACİM" or clean_text == "/HACİM":
-                send_telegram_message(chat_id, "🔍 *Hacmi patlayan pariteler taranıyor...* ⏳")
+                send_telegram_message(chat_id, "🔍 *Piyasada hacmi patlayan pariteler taranıyor...* ⏳")
                 spikes = scan_volume_spikes()
                 if spikes:
                     msg = "🚨 *HACMİ PATLAYAN (PARA GİREN) COİNLER* 🚨\n\n"
@@ -212,11 +212,11 @@ def telegram_webhook():
                             f"🪙 *{item['symbol']}*\n"
                             f"• Hacim Katı: `{item['ratio']:.1f}x`\n"
                             f"• Fiyat: `{item['price']}` (`%{item['change']:.2f}`)\n"
-                            f"👉 *Yorum:* Hacim var, temel olarak long fırsatı aranmalı!\n\n"
+                            f"👉 *Yorum:* Hacim var, long kollanmalı!\n\n"
                         )
                     send_telegram_message(chat_id, msg)
                 else:
-                    send_telegram_message(chat_id, "ℹ️️ Şu an eşiği geçen belirgin bir hacim patlaması bulunamadı.")
+                    send_telegram_message(chat_id, "ℹ Şu an eşiği geçen belirgin bir hacim patlaması bulunamadı.")
             elif len(clean_text) <= 10 and len(clean_text) > 0:
                 analysis_result = perform_deep_analysis(clean_text)
                 send_telegram_message(chat_id, message=analysis_result)
@@ -229,5 +229,8 @@ def telegram_webhook():
     return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
+    # Kod başlar başlamaz Telegram Webhook'unu otomatik bağlar
+    setup_webhook_automatically()
+    
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
